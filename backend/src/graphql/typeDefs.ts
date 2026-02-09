@@ -59,4 +59,84 @@ export const typeDefs = gql`
       role: String!
     ): User!
   }
+
+  type Project {
+  id: ID!
+  name: String!
+  description: String
+}
+
+extend type Query {
+  getMyProjects: [Project!]!
+}
+
+extend type Mutation {
+  createProject(
+    name: String!
+    description: String
+  ): Project!
+}
+type ProjectMember {
+  user: User!
+  role: String!
+}
+
+extend type Project {
+  members: [ProjectMember!]!
+}
+
+type Task {
+  id: ID!
+  title: String!
+  description: String
+  status: String!
+}
+
+extend type Query {
+  getProjectTasks(projectId: ID!): [Task!]!
+}
+
+extend type Mutation {
+  createTask(
+    projectId: ID!
+    title: String!
+    description: String
+    assignedTo: ID
+  ): Task!
+
+  updateTaskStatus(
+    taskId: ID!
+    status: String!
+  ): Task!
+
+  deleteTask(taskId: ID!): Boolean!
+}
+type Project {
+  id: ID!
+  name: String!
+  description: String
+  members: [ProjectMember!]!
+}
+
+type ProjectMember {
+  user: User!
+  role: String!
+}
+
+extend type Query {
+  getProjectById(projectId: ID!): Project!
+}
+
+extend type Mutation {
+  updateProject(
+    projectId: ID!
+    name: String
+    description: String
+  ): Project!
+
+  deleteProject(projectId: ID!): Boolean!
+}
+
+
+
 `;

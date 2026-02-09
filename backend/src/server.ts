@@ -7,7 +7,7 @@ import { ApolloServer } from "apollo-server-express";
 import { typeDefs } from "./graphql/typeDefs";
 import { resolvers } from "./graphql/resolvers";
 import { connectDB } from "./config/db";
-import { verifyToken } from "./utils/verifyToken";
+import { buildContext } from "./middleware/authMiddleware";
 
 const startServer = async () => {
   await connectDB();
@@ -16,31 +16,19 @@ const startServer = async () => {
   app.use(cors());
   app.use(express.json());
 
-const server = new ApolloServer({
-  typeDefs,
-  resolvers,
-  context: ({ req }) => {
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader) return {};
-
-    const token = authHeader.replace("Bearer ", "");
-
-    try {
-      const decoded = verifyToken(token);
-      return { user: decoded };
-    } catch (error) {
-      return {};
-    }
-  }
-});
-
+  const server = new ApolloServer({
+    typeDefs,
+    resolvers,
+    context: buildContext
+  });
 
   await server.start();
   server.applyMiddleware({ app, path: "/graphql" });
 
   app.listen(process.env.PORT, () => {
-    console.log(`🚀 Server running at http://localhost:${process.env.PORT}/graphql`);
+    console.log(
+      `🚀 Server running at http://localhost:${process.env.PORT}/graphql`
+    );
   });
 };
 

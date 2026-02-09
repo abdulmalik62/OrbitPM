@@ -1,6 +1,11 @@
 import { Tenant } from "../models/Tenant";
 import { User } from "../models/User";
+import { Project } from "../models/Project";
+import { ProjectMembership } from "../models/ProjectMembership";
 import { hashPassword, comparePassword } from "../utils/hash";
+import { Task } from "../models/Task";
+import { requireProjectMember } from "../utils/projectAuth";
+
 import { generateToken } from "../utils/jwt";
 import {
   requireSystemAdmin,
@@ -8,6 +13,18 @@ import {
 } from "../utils/authorization";
 
 export const resolvers = {
+  Project: {
+    members: async (project: any) => {
+      const memberships = await ProjectMembership.find({
+        projectId: project.id
+      }).populate("userId");
+
+      return memberships.map(m => ({
+        user: m.userId,
+        role: m.role
+      }));
+    }
+  },
   Query: {
     health: () => "OrbitPM Backend Running 🚀",
 
@@ -35,7 +52,55 @@ export const resolvers = {
       return User.find({
         tenantId: context.user.tenantId
       });
-    }
+    },
+    getMyProjects: async (_: any, __: any, context: any) => {
+      requireTenantUser(context);
+
+      // If tenant admin → see all tenant projects
+      if (context.user.role === "TENANT_ADMIN") {
+        return Project.find({
+          tenantId: context.user.tenantId
+        });
+      }
+
+      // Otherwise → membership based visibility
+      const memberships = await ProjectMembership.find({
+        userId: context.user.sub
+      });
+
+      const projectIds = memberships.map(m => m.projectId);
+
+      return Project.find({
+        _id: { $in: projectIds }
+      });
+    },
+
+
+
+    getProjectTasks: async (_: any, { projectId }: any, context: any) => {
+      requireTenantUser(context);
+
+      await requireProjectMember(projectId, context.user.sub);
+
+      return Task.find({
+        projectId,
+        tenantId: context.user.tenantId
+      });
+    },
+    getProjectById: async (_: any, { projectId }: any, context: any) => {
+      requireTenantUser(context);
+
+      await requireProjectMember(projectId, context.user.sub);
+
+      const project = await Project.findById(projectId);
+      if (!project) throw new Error("Project not found");
+
+      return project;
+    },
+
+
+
+
   },
 
   Mutation: {
@@ -189,6 +254,132 @@ export const resolvers = {
         tenantId: context.user.tenantId,
         role
       });
-    }
-  }
+    },
+    createProject: async (
+      _: any,
+      { name, description }: any,
+      context: any
+    ) => {
+      requireTenantUser(context);
+
+      const project = await Project.create({
+        name,
+        description,
+        tenantId: context.user.tenantId,
+        createdBy: context.user.sub
+      });
+
+      await ProjectMembership.create({
+        projectId: project._id,
+        userId: context.user.sub,
+        tenantId: context.user.tenantId,
+        role: "PROJECT_ADMIN"
+      });
+
+      return project;
+    },
+    createTask: async (
+      _: any,
+      { projectId, title, description, assignedTo }: any,
+      context: any
+    ) => {
+      requireTenantUser(context);
+
+      await requireProjectMember(projectId, context.user.sub);
+
+      return Task.create({
+        title,
+        description,
+        projectId,
+        tenantId: context.user.tenantId,
+        assignedTo,
+        createdBy: context.user.sub
+      });
+    },
+    updateTaskStatus: async (
+      _: any,
+      { taskId, status }: any,
+      context: any
+    ) => {
+      requireTenantUser(context);
+
+      const task = await Task.findById(taskId);
+      if (!task) throw new Error("Task not found");
+
+      await requireProjectMember(task.projectId.toString(), context.user.sub);
+
+      task.status = status;
+      await task.save();
+
+      return task;
+    },
+    deleteTask: async (_: any, { taskId }: any, context: any) => {
+      requireTenantUser(context);
+
+      const task = await Task.findById(taskId);
+      if (!task) throw new Error("Task not found");
+
+      const membership = await requireProjectMember(
+        task.projectId.toString(),
+        context.user.sub
+      );
+
+      if (membership.role !== "PROJECT_ADMIN") {
+        throw new Error("Only project admin can delete task");
+      }
+
+      await task.deleteOne();
+      return true;
+    },
+
+    updateProject: async (
+      _: any,
+      { projectId, name, description }: any,
+      context: any
+    ) => {
+      requireTenantUser(context);
+
+      const membership = await requireProjectMember(
+        projectId,
+        context.user.sub
+      );
+
+      if (membership.role !== "PROJECT_ADMIN") {
+        throw new Error("Only project admin can update project");
+      }
+
+      const project = await Project.findById(projectId);
+      if (!project) throw new Error("Project not found");
+
+      if (name) project.name = name;
+      if (description) project.description = description;
+
+      await project.save();
+      return project;
+    },
+    deleteProject: async (_: any, { projectId }: any, context: any) => {
+      requireTenantUser(context);
+
+      const membership = await requireProjectMember(
+        projectId,
+        context.user.sub
+      );
+
+      if (membership.role !== "PROJECT_ADMIN") {
+        throw new Error("Only project admin can delete project");
+      }
+
+      await Task.deleteMany({ projectId });
+      await ProjectMembership.deleteMany({ projectId });
+      await Project.findByIdAndDelete(projectId);
+
+      return true;
+    },
+
+
+
+
+  },
+
+
 };
