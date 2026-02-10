@@ -103,6 +103,26 @@ export const getProjectById = async (projectId: string) => {
   return data.getProjectById;
 };
 
+export const getMyAssignedTasks = async () => {
+  const query = `
+    query {
+      getMyAssignedTasks {
+        id
+        title
+        description
+        status
+        assignedTo {
+          id
+          name
+          email
+        }
+      }
+    }
+  `;
+  const data = await graphqlRequest(query);
+  return data.getMyAssignedTasks;
+};
+
 // Tenant Admin Mutations
 export const createTenantUser = async (name: string, email: string, password: string, role: string) => {
   const mutation = `

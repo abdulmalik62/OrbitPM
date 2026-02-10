@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from "react-native";
+import { Picker } from "@react-native-picker/picker";
 import { getProjectTasks, createTask, updateTaskStatus, deleteTask, getMyTenantUsers } from "../../../services/api";
 import CreateTaskModal from "../../../components/CreateTaskModal";
 
@@ -89,12 +90,18 @@ export default function ProjectTasksScreen({ route }: any) {
         Assigned to: {item.assignedTo ? item.assignedTo.name : "Unassigned"}
       </Text>
       <View style={styles.taskActions}>
-        <TouchableOpacity
-          style={styles.statusButton}
-          onPress={() => handleUpdateStatus(item.id, item.status === "TODO" ? "IN_PROGRESS" : item.status === "IN_PROGRESS" ? "DONE" : "TODO")}
-        >
-          <Text style={styles.statusButtonText}>Change Status</Text>
-        </TouchableOpacity>
+        <View style={styles.statusPickerContainer}>
+          <Text style={styles.statusLabel}>Status:</Text>
+          <Picker
+            selectedValue={item.status}
+            style={styles.statusPicker}
+            onValueChange={(itemValue) => handleUpdateStatus(item.id, itemValue)}
+          >
+            <Picker.Item label="TODO" value="TODO" />
+            <Picker.Item label="IN_PROGRESS" value="IN_PROGRESS" />
+            <Picker.Item label="DONE" value="DONE" />
+          </Picker>
+        </View>
         <TouchableOpacity style={styles.deleteButton} onPress={() => handleDeleteTask(item.id)}>
           <Text style={styles.deleteButtonText}>Delete</Text>
         </TouchableOpacity>
@@ -143,9 +150,10 @@ const styles = StyleSheet.create({
   taskDescription: { fontSize: 14, color: "#666", marginBottom: 8 },
   taskStatus: { fontSize: 14, color: "#007bff" },
   taskAssignee: { fontSize: 14, color: "#666" },
-  taskActions: { flexDirection: "row", marginTop: 12 },
-  statusButton: { backgroundColor: "#28a745", padding: 8, borderRadius: 4, marginRight: 8 },
-  statusButtonText: { color: "white", textAlign: "center" },
+  taskActions: { flexDirection: "row", marginTop: 12, alignItems: "center" },
+  statusPickerContainer: { flexDirection: "row", alignItems: "center", marginRight: 8 },
+  statusLabel: { fontSize: 14, marginRight: 8 },
+  statusPicker: { height: 40, width: 120 },
   deleteButton: { backgroundColor: "#dc3545", padding: 8, borderRadius: 4 },
   deleteButtonText: { color: "white", textAlign: "center" },
   emptyText: { textAlign: "center", marginTop: 20, fontSize: 16, color: "#666" },

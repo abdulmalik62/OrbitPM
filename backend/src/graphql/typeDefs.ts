@@ -31,6 +31,10 @@ export const typeDefs = gql`
 
     # TENANT USERS
     getMyTenantUsers: [User!]!
+    getMyProjects: [Project!]!
+    getProjectTasks(projectId: ID!): [Task!]!
+    getMyAssignedTasks: [Task!]!
+    getProjectById(projectId: ID!): Project!
   }
 
   type Mutation {

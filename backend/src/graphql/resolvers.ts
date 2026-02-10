@@ -114,6 +114,15 @@ export const resolvers = {
       return project;
     },
 
+    getMyAssignedTasks: async (_: any, __: any, context: any) => {
+      requireTenantUser(context);
+
+      return Task.find({
+        assignedTo: context.user.sub,
+        tenantId: context.user.tenantId
+      });
+    },
+
 
 
 
