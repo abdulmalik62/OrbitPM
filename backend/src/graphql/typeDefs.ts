@@ -3,6 +3,10 @@ import { gql } from "apollo-server-express";
 export const typeDefs = gql`
   type AuthResponse {
     token: String!
+    name: String!
+    email: String!
+    role: String!
+    tenantName: String
   }
 
   type Tenant {
@@ -15,6 +19,7 @@ export const typeDefs = gql`
     name: String!
     email: String!
     role: String!
+    tenant: Tenant
   }
 
   type Query {
@@ -90,6 +95,7 @@ type Task {
   title: String!
   description: String
   status: String!
+  assignedTo: User
 }
 
 extend type Query {
@@ -135,6 +141,30 @@ extend type Mutation {
   ): Project!
 
   deleteProject(projectId: ID!): Boolean!
+
+  addMember(
+    projectId: ID!
+    userId: ID!
+    role: String!
+  ): ProjectMembership!
+
+  removeMember(
+    projectId: ID!
+    userId: ID!
+  ): Boolean!
+
+  updateMemberRole(
+    projectId: ID!
+    userId: ID!
+    role: String!
+  ): ProjectMembership!
+}
+
+type ProjectMembership {
+  id: ID!
+  projectId: ID!
+  userId: ID!
+  role: String!
 }
 
 

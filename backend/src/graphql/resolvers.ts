@@ -25,6 +25,22 @@ export const resolvers = {
       }));
     }
   },
+  Task: {
+    assignedTo: async (task: any) => {
+      if (task.assignedTo) {
+        return User.findById(task.assignedTo);
+      }
+      return null;
+    }
+  },
+  User: {
+    tenant: async (user: any) => {
+      if (user.tenantId) {
+        return Tenant.findById(user.tenantId);
+      }
+      return null;
+    }
+  },
   Query: {
     health: () => "OrbitPM Backend Running 🚀",
 
@@ -141,11 +157,16 @@ export const resolvers = {
     },
 
     login: async (_: any, { email, password, tenantName }: any) => {
+      console.log(`Login attempt: email=${email}, tenantName=${tenantName}`);
       let user;
+      let tenant = null;
 
       if (tenantName) {
-        const tenant = await Tenant.findOne({ name: tenantName });
-        if (!tenant) throw new Error("Tenant not found");
+        tenant = await Tenant.findOne({ name: tenantName });
+        if (!tenant) {
+          console.log(`Tenant not found: ${tenantName}`);
+          throw new Error("Tenant not found");
+        }
 
         user = await User.findOne({
           email,
@@ -158,12 +179,25 @@ export const resolvers = {
         });
       }
 
-      if (!user) throw new Error("Invalid credentials");
+      if (!user) {
+        console.log(`User not found: email=${email}, tenantId=${tenant ? tenant._id : 'SYSTEM_ADMIN'}`);
+        throw new Error("Invalid credentials");
+      }
 
       const isMatch = await comparePassword(password, user.password);
-      if (!isMatch) throw new Error("Invalid credentials");
+      if (!isMatch) {
+        console.log(`Password mismatch for user: ${email}`);
+        throw new Error("Invalid credentials");
+      }
 
-      return { token: generateToken(user) };
+      console.log(`Login successful for user: ${email}`);
+      return {
+        token: generateToken(user),
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        tenantName: tenant ? tenant.name : null
+      };
     },
 
     // ==============================
@@ -374,6 +408,78 @@ export const resolvers = {
       await Project.findByIdAndDelete(projectId);
 
       return true;
+    },
+
+    addMember: async (_: any, { projectId, userId, role }: any, context: any) => {
+      requireTenantUser(context);
+
+      const project = await Project.findById(projectId);
+      if (!project || project.tenantId.toString() !== context.user.tenantId) {
+        throw new Error("Project not found or not in tenant");
+      }
+
+      if (context.user.role !== "TENANT_ADMIN") {
+        const membership = await ProjectMembership.findOne({ projectId, userId: context.user.sub });
+        if (!membership || membership.role !== "PROJECT_ADMIN") {
+          throw new Error("Not authorized");
+        }
+      }
+
+      const user = await User.findById(userId);
+      if (!user || user.tenantId.toString() !== context.user.tenantId) {
+        throw new Error("User not in tenant");
+      }
+
+      const existing = await ProjectMembership.findOne({ projectId, userId });
+      if (existing) {
+        throw new Error("User already member");
+      }
+
+      return ProjectMembership.create({ projectId, userId, tenantId: context.user.tenantId, role });
+    },
+
+    removeMember: async (_: any, { projectId, userId }: any, context: any) => {
+      requireTenantUser(context);
+
+      const project = await Project.findById(projectId);
+      if (!project || project.tenantId.toString() !== context.user.tenantId) {
+        throw new Error("Project not found");
+      }
+
+      if (context.user.role !== "TENANT_ADMIN") {
+        const membership = await ProjectMembership.findOne({ projectId, userId: context.user.sub });
+        if (!membership || membership.role !== "PROJECT_ADMIN") {
+          throw new Error("Not authorized");
+        }
+      }
+
+      await ProjectMembership.findOneAndDelete({ projectId, userId });
+      return true;
+    },
+
+    updateMemberRole: async (_: any, { projectId, userId, role }: any, context: any) => {
+      requireTenantUser(context);
+
+      const project = await Project.findById(projectId);
+      if (!project || project.tenantId.toString() !== context.user.tenantId) {
+        throw new Error("Project not found");
+      }
+
+      if (context.user.role !== "TENANT_ADMIN") {
+        const membership = await ProjectMembership.findOne({ projectId, userId: context.user.sub });
+        if (!membership || membership.role !== "PROJECT_ADMIN") {
+          throw new Error("Not authorized");
+        }
+      }
+
+      const membership = await ProjectMembership.findOne({ projectId, userId });
+      if (!membership) {
+        throw new Error("Membership not found");
+      }
+
+      membership.role = role;
+      await membership.save();
+      return membership;
     },
 
 
